@@ -1,6 +1,6 @@
 # 2020 Charcoal Paper
 
-A write of [charcoal](github.com/dib-lab/charcoal).
+A writeup of [charcoal](github.com/dib-lab/charcoal).
 
 To reexecute the analyses in this repository:
 
