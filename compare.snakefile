@@ -45,12 +45,12 @@ rule run_charcoal:
         mag_list = "inputs/charcoal_conf/mgnify_genome_list.txt",
         conf = "inputs/charcoal_conf/mgnify_genomes.conf",
     output: 
-        "outputs/charcoal/{genome}.fa.clean.fa.gz",
-        "outputs/charcoal/{genome}.fa.dirty.fa.gz"
+        expand("outputs/charcoal/{genome}.fa.clean.fa.gz", genome = GENOMES),
+        expand("outputs/charcoal/{genome}.fa.dirty.fa.gz", genome = GENOMES)
     conda: "envs/charcoal.yml"
-    benchmark: "benchmarks/{genome}_charcoal.benchmark"
+    benchmark: "benchmarks/charcoal.benchmark"
     shell:'''
-    charcoal run {input.conf} -j 8 --nolock
+    charcoal run {input.conf} -j 8 --nolock --no-use-conda
     '''
 
 rule run_checkm_lineage_qf_clean:
