@@ -163,3 +163,18 @@ A bullet list:
 1. What does REASON 3 actually mean?
 2. in `class ContigsDecontaminator`, how does the object transit from REASON 1 checks to REASON 2 & 3 checks? What is a class? How is it being used here?
 3. are hashes assigned their LCA lineage? so if it's shared between all strains of a species, it gets the species lineage? and if it's shared in two phyla of bacteria, it gets the "bacteria" lineage?
+
+# Results outline:
+
++ charcoal estimates low contamination in non-representative GTDB genomes
++ charcoal assigns correct taxonomy to all non-representative GTDB genomes
++ charcoal vs. checkm
+  + charcoal vs. checkm: mgnify, tara
+  + checkm on charcoal clean
+  + prokka on charcoal dirty
++ charcoal vs. refineM and magpurify
++ verfication of contamination/contam case studies
+  + case studies
+  + user-provided lineages
+  + cDBG/spacegraphcats?
+  + user-specified lineages
