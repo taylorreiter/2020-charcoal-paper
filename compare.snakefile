@@ -26,9 +26,9 @@ rule unembed_gff_fasta:
     input: "inputs/mgnify_genomes/human-gut/v1.0/{genome}.gff3.gz"
     output: "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa"
     shell:"""
-    zcat {input} | awk 'BEGIN { doprint = 0}; \
-                        doprint == 1 { print $0 }; \
-                        $0 ~ /#FASTA/ { doprint = 1 }' > {output}
+    zcat {input} | awk 'BEGIN {{ doprint = 0}}; \
+                        doprint == 1 {{ print $0 }}; \
+                        $0 ~ /#FASTA/ {{ doprint = 1 }}' > {output}
     """
 
 rule make_mag_list: 
@@ -50,7 +50,7 @@ rule run_charcoal:
     conda: "envs/charcoal.yml"
     benchmark: "benchmarks/{genome}_charcoal.benchmark"
     shell:'''
-    charcoal run {input.conf} -j 8
+    charcoal run {input.conf} -j 8 --nolock
     '''
 
 rule run_checkm_lineage_qf_clean:
