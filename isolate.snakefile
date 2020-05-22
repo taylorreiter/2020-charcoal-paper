@@ -6,7 +6,6 @@ gtdb = pd.read_csv(gtdb_url, sep = "\t")
 GENOMES = gtdb[gtdb.columns[0]].unique().tolist()
 GENOMES = [genome for genome in GENOMES if 'RS_' in genome] # filter to refseq
 GENOMES = [re.sub("RS_", "", genome) for genome in GENOMES]
-GENOMES = GENOMES[0:5]
 
 rule all:
     input: 
@@ -16,7 +15,8 @@ rule download_datasets_tool:
     output: "scripts/datasets"
     shell:'''
     # specific to macs
-    wget -O {output} wget -O scripts/datasets https://ftp.ncbi.nlm.nih.gov/pub/datasets/command-line/LATEST/mac/datasets
+    # wget -O {output} https://ftp.ncbi.nlm.nih.gov/pub/datasets/command-line/LATEST/mac/datasets
+    wget -O {output} https://ftp.ncbi.nlm.nih.gov/pub/datasets/command-line/LATEST/linux-amd64/datasets
     chmod +x {output}
     '''
 

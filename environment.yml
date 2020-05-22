@@ -1,0 +1,9 @@
+name: charcoal_paper
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - python>=3.6
+    - snakemake-minimal=5.8.1
+    - pandas=0.25.3
