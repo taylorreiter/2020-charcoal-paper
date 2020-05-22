@@ -68,7 +68,7 @@ rule run_checkm_lineage_qf_clean:
     """
     Reports general summary statistics (% complete, % contamination) for genome (bins).
     """
-    input: expand("outputs/charcoal/{genome}.fa.clean.fa.gz", genome = GENOMES)
+    input: expand("outputs/charcoal/{genome}.fa.clean.fa", genome = GENOMES)
     output: "outputs/charcoal_clean_checkm/completeness.tsv"
     params: 
         indir = "outputs/charcoal",
@@ -80,7 +80,7 @@ rule run_checkm_lineage_qf_clean:
     checkm lineage_wf \
         --file {output} \
         --tab_table \
-        --extension .fa.clean.fa.gz \
+        --extension .fa.clean.fa \
         --threads {params.threads} \
         {params.indir} {params.outdir} 
     '''     
