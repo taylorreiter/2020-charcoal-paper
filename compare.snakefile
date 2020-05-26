@@ -10,7 +10,9 @@ GENOMES = m['Genome'].unique().tolist()
 rule all:
     input:
         #expand("inputs/mgnify_genomes/human-gut/v1.0/{genome}.gff3.gz", genome = GENOMES)
-        expand("outputs/charcoal/{genome}.fa.clean.fa", genome = GENOMES)
+        expand("outputs/charcoal/{genome}.fa.clean.fa", genome = GENOMES),
+        "outputs/charcoal_clean_checkm_qa/qa.tsv",
+        expand("outputs/charcoal_dirty_prokka/{genome}.fna", genome = GENOMES)
         
 
 rule download_genomes: 
@@ -61,7 +63,11 @@ rule gunzip_charcoal_clean:
     input: "outputs/charcoal/{genome}.fa.clean.fa.gz"
     output: "outputs/charcoal/{genome}.fa.clean.fa"
     shell:'''
-    gunzip {input}
+    if [ -s {input} ]; then
+        gunzip {input}
+    else
+        mv {input} {output}
+    fi
     '''
 
 rule run_checkm_lineage_qf_clean:
@@ -69,7 +75,9 @@ rule run_checkm_lineage_qf_clean:
     Reports general summary statistics (% complete, % contamination) for genome (bins).
     """
     input: expand("outputs/charcoal/{genome}.fa.clean.fa", genome = GENOMES)
-    output: "outputs/charcoal_clean_checkm/completeness.tsv"
+    output: 
+        comp = "outputs/charcoal_clean_checkm/completeness.tsv",
+        lin = "outputs/charcoal_clean_checkm/lineage.ms"
     params: 
         indir = "outputs/charcoal",
         threads = "4",
@@ -78,9 +86,9 @@ rule run_checkm_lineage_qf_clean:
     #benchmark: "benchmarks/{genome}_checkm_clean.benchmark"
     shell:'''
     checkm lineage_wf \
-        --file {output} \
+        --file {output.comp} \
         --tab_table \
-        --extension .fa.clean.fa \
+        -x .fa.clean.fa \
         --threads {params.threads} \
         {params.indir} {params.outdir} 
     '''     
@@ -89,13 +97,13 @@ rule run_checkm_qa_clean:
     """
     Reports name of contig on which contaminant marker gene resides, as well as marker gene identity.
     """
-    input: marker_file = "charcoal_clean_checkm/lineage.ms"
-    output: ""
+    input: marker_file = "outputs/charcoal_clean_checkm/lineage.ms"
+    output: "outputs/charcoal_clean_checkm_qa/qa.tsv"
     conda: "envs/checkm.yml"
     benchmark: "benchmarks/checkm_qa_clean.benchmark"
     params: 
         threads = "4",
-        indir = "charcoal_clean_checkm" 
+        indir = "outputs/charcoal_clean_checkm" 
     shell:'''
     checkm qa -o 8 -f {output} --tab_table -t {params.threads} {input.marker_file} {params.indir}
     '''
