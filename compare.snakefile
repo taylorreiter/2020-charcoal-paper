@@ -108,8 +108,19 @@ rule run_checkm_qa_clean:
     checkm qa -o 8 -f {output} --tab_table -t {params.threads} {input.marker_file} {params.indir}
     '''
 
-rule run_prokka_dirty:
+rule gunzip_charcoal_dirty:
     input: "outputs/charcoal/{genome}.fa.dirty.fa.gz"
+    output: "outputs/charcoal/{genome}.fa.dirty.fa"
+    shell:'''
+    if [ -s {input} ]; then
+        gunzip {input}
+    else
+        mv {input} {output}
+    fi
+    '''
+
+rule run_prokka_dirty:
+    input: "outputs/charcoal/{genome}.fa.dirty.fa"
     output: "outputs/charcoal_dirty_prokka/{genome}.fna"
     params: outdir = "outputs/charcoal_dirty_prokka" 
     conda: "envs/prokka.yml"
