@@ -6,6 +6,7 @@ import random
 m = pd.read_csv("tmp-1000r-mgnify-genomes-all_metadata.tsv", sep = "\t")
 m = m.head(n = 100)
 GENOMES = m['Genome'].unique().tolist()
+METAGENOMES = m['Sample_accession'].unique().tolist()
 
 rule all:
     input:
@@ -198,6 +199,7 @@ rule run_magpurify_phylo_markers:
     output: "outputs/magpurify/{genome}/phylo-markers/genes.out" 
     conda: "envs/magpurify.yml"
     params: outdir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
+    benchmark: "benchmarks/magpurify_phylo_markers_{genome}.benchmark"
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
     magpurify phylo-markers {input.genome} {params.outdir}
@@ -209,6 +211,7 @@ rule run_magpurify_clade_markers:
         db =  "inputs/magpurify_db/MAGpurify-db-v1.0/phylo-markers/PhyEco.hmm" 
     output: "outputs/magpurify/{genome}/clade-markers/genes.out" 
     conda: "envs/magpurify.yml"
+    benchmark: "benchmarks/magpurify_clade_markers_{genome}.benchmark"
     params: outdir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
@@ -222,6 +225,7 @@ rule run_magpurify_tetra_freq:
     output: "outputs/magpurify/{genome}/tetra-freq/flagged_contigs" 
     params: outdir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
     conda: "envs/magpurify.yml"
+    benchmark: "benchmarks/magpurify_tetra_freq_{genome}.benchmark"
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
     magpurify tetra-freq {input.genome} {params.outdir}
@@ -234,6 +238,7 @@ rule run_magpurify_gc_content:
     output: "outputs/magpurify/{genome}/gc-content/flagged_contigs" 
     params: outdir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
     conda: "envs/magpurify.yml"
+    benchmark: "benchmarks/magpurify_gc_content_{genome}.benchmark"
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
     magpurify gc-content {input.genome} {params.outdir}
@@ -246,6 +251,7 @@ rule run_magpurify_known_contam:
     output: "outputs/magpurify/{genome}/known-contam/flagged_contigs", 
     params: outdir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
     conda: "envs/magpurify.yml"
+    benchmark: "benchmarks/magpurify_known_contam_{genome}.benchmark"
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
     magpurify known-contam {input.genome} {params.outdir}
@@ -263,6 +269,7 @@ rule run_magpurify_clean_bin:
     output: "outputs/magpurify_clean/{genome}_magpurify.fna"
     conda: "envs/magpurify.yml"
     params: indir = lambda wildcards: "outputs/magpurify/" + wildcards.genome
+    benchmark: "benchmarks/magpurify_clean_{genome}.benchmark"
     shell:'''
     export MAGPURIFYDB=inputs/magpurify_db/MAGpurify-db-v1.0
     magpurify clean-bin {input.genome} {params.indir} {output}
@@ -272,4 +279,142 @@ rule run_magpurify_clean_bin:
 ### Compare against refineM
 #############################################
 
-rule run_refineM:
+rule refinem_download_db:
+    output:""
+    shell:'''
+    wget -O {output}
+    '''
+
+rule refinem_download_raw_reads_forward:
+    output: 
+        r1="inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz",
+    run:
+        metagenome = wildcards.metagenome
+        metagenome_root = metagenome[0:6]
+        download_ftp = "ftp://ftp.sra.ebi.ac.uk/vol1/fastq/" + metagenome_root + metagenome + "_1.fastq.gz"
+        shell("wget -O {output.r1} {fastq_1}")
+
+
+rule refinem_download_raw_reads_reverse:
+    output: 
+        r2="inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz",
+    run:
+        metagenome = wildcards.metagenome
+        metagenome_root = metagenome[0:6]
+        download_ftp = "ftp://ftp.sra.ebi.ac.uk/vol1/fastq/" + metagenome_root + metagenome + "_2.fastq.gz"
+        shell("wget -O {output.r2} {fastq_2}")
+
+rule refinem_index_genomes:
+    input: 
+        genome ="outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa",
+    output: "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt"
+    conda: "envs/refinem.yml"
+    shell:'''
+    bwa index {input}
+    '''
+
+rule refinem_align_reads:
+    input:
+        genome ="outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa",
+        indx = "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt"
+        r1 = expand("inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz", metagenome = METAGENOMES),
+        r2 = expand("inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz", metagenome = METAGENOMES),
+    output: "outputs/refinem/bams/{genome}.bam"
+    benchmark: "benchmarks/refinem_{genome}_bwa_align_reads.txt"
+    run:
+        row = m.loc[m['Genome'] == wildcards.genome]
+        metagenome = row['Sample_accession'].values
+        metagenome = metagenome[0]
+        r1 = "inputs/raw_mgnify_reads/" + metagenome + "_1.fastq.gz"
+        r2 = "inputs/raw_mgnify_reads/" + metagenome + "_2.fastq.gz"
+        shell("bwa mem {input.genome} {r1} {r2} | samtools sort -o {output} -")
+
+
+rule refinem_scaffold_stats:
+    input: 
+        expand("outputs/refinem/bams/{genome}.bam", genome = GENOMES),
+        expand("outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa", genome = GENOMES),
+    output: "outputs/refinem/scaffold_stats/scaffold_stats.tsv" 
+    params: 
+        bindir = "outputs/mgnify_genomes/human-gut/v1.0",
+        bamdir = "outputs/refinem/bams", 
+        outdir = "outputs/refinem/scaffold_stats"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_scaffold_stats.txt"
+    shell:'''
+    refinem scaffold_stats -c 16 scaffold_stats.tsv {params.bindir} {params.outdir} {params.bamdir}
+    '''
+
+rule refinem_outliers:
+    input: "outputs/refinem/scaffold_stats/scaffold_stats.tsv" 
+    output: "outputs/refinem/outliers/outliers.tsv"
+    params: outdir = "outputs/refinem/outliers"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_outliers.txt"
+    shell:'''
+    refinem outliers {input} <outlier_output_dir>
+    '''
+
+rule refinem_filter_bins_stats:
+    input: "outputs/refinem/outliers/outliers.tsv"
+    output: "outputs/refinem/filter_bin_stats/" # need to decide if I want all bins here or just modified bins. if mod, probs directory().
+    params: 
+        bindir = "outputs/mgnify_genomes/human-gut/v1.0",
+        outdir = "outputs/refinem/filter_bins_stats/"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_filter_bins_stats.txt"
+    shell:'''
+    refinem filter_bins {params.bindir} {input} {params.outdir} # --modified_only will make this rule only output modified bins
+    '''
+
+rule refinem_call_genes:
+    input: 
+        expand("outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa", genome = GENOMES),
+    output: # NEED TO FILL IN OUTPUT FILE (run first, to determine name of an output file)
+    params: 
+        bindir = "outputs/mgnify_genomes/human-gut/v1.0",
+        genedir = "outputs/refinem/call_genes/"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_call_genes.txt"
+    shell:'''
+    refinem call_genes -c 40 {params.bindir} {params.genedir}
+    '''
+
+rule refinem_taxon_profile:
+    input: 
+        scaffold_stats = "outputs/refinem/scaffold_stats/scaffold_stats.tsv",
+        db = ,# NEED TO FILL IN WITH DB DOWNLOAD
+        tax = # NEED TO FILL IN WITH REF TAX DOWNLOAD
+    output: "outputs/refinem/taxon_profile/" # NEED TO ADD A SPECIFIC FILE NAME
+    params:
+        genedir = "outputs/refinem/call_genes",
+        outdir = "outputs/refinem/taxon_profile"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_taxon_profile.txt"
+    shell:'''
+    refinem taxon_profile -c 40 {params.genedir} {input.scaffold_stats} {input.db} {input.tax} {params.outdir}
+    '''
+
+rule refinem_taxon_filter:
+    input: "outputs/refinem/taxon_profile/" # NEED TO ADD A SPECIFIC FILE NAME TO MATCH OUTPUT OF ABOVE RULE 
+    output: "outputs/refinem/taxon_profile/taxon_filter.tsv" 
+    params: indir = "outputs/refinem/taxon_profile"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_taxon_filter.txt"
+    shell:'''
+    refinem taxon_filter -c 40 {params.indir} {output}
+    '''
+
+rule refinem_filter_bins_taxon:
+    input: 
+        tax_filt = "outputs/refinem/taxon_profile/taxon_filter.tsv",
+        genome = expand("outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa", genome = GENOMES),
+    output: "outputs/refinem/filter_bins_taxon" # NEED TO ADD SPECIFIC FILE OUTPUTS
+    params: 
+        bindir = "outputs/mgnify_genomes/human-gut/v1.0",
+        outdir = "outputs/refinem/filter_bins/taxon"
+    conda: "envs/refinem.yml"
+    benchmark: "benchmarks/refinem_filter_bins_taxon.txt"
+    shell: '''
+    refinem filter_bins {params.bindir} {input.tax_filt} {params.outdir}
+    '''
