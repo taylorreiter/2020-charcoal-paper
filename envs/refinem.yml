@@ -1,0 +1,6 @@
+channels:
+ - conda-forge  
+ - bioconda
+ - defaults
+dependencies:
+ - refinem=0.1.1  
