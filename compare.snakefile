@@ -291,24 +291,22 @@ rule refinem_download_taxonmy_db:
     wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_taxonomy.2019-09-27.tsv
     '''
 
-rule refinem_download_raw_reads_forward:
-    output: 
-        r1="inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz",
+rule refinem_download_ftp_links_for_raw_fastq:
+    output: "inputs/raw_mgnify_reads_links/{accession}.tsv"
     run:
-        metagenome = wildcards.metagenome
-        metagenome_root = metagenome[0:6]
-        download_ftp = "ftp://ftp.sra.ebi.ac.uk/vol1/fastq/" + metagenome_root + metagenome + "_1.fastq.gz"
-        shell("wget -O {output.r1} {fastq_1}")
+        accession = wildcards.accession
+        url = "http://www.ebi.ac.uk/ena/data/warehouse/filereport?accession=" + accession + "&result=read_run&fields=fastq_ftp"
+        shell("wget -O {output} {url}")
 
 
-rule refinem_download_raw_reads_reverse:
-    output: 
-        r2="inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz",
-    run:
-        metagenome = wildcards.metagenome
-        metagenome_root = metagenome[0:6]
-        download_ftp = "ftp://ftp.sra.ebi.ac.uk/vol1/fastq/" + metagenome_root + metagenome + "_2.fastq.gz"
-        shell("wget -O {output.r2} {fastq_2}")
+rule refinem_download_raw_fastq:
+    """
+    this rule needs to read in the accessions.tsv files output above,
+    generate a list of distinct ftp links for all accessions,
+    and download those links. 
+    it also needs to create an accession:ftp mapping, so that the correct pair
+    of genome + reads can be aligned. 
+    """
 
 rule refinem_index_genomes:
     input: 
@@ -323,8 +321,8 @@ rule refinem_align_reads:
     input:
         genome ="outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa",
         indx = "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt",
-        r1 = expand("inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz", metagenome = METAGENOMES),
-        r2 = expand("inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz", metagenome = METAGENOMES),
+        #r1 = expand("inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz", metagenome = METAGENOMES),
+        #r2 = expand("inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz", metagenome = METAGENOMES),
     output: "outputs/refinem/bams/{genome}.bam"
     benchmark: "benchmarks/refinem_{genome}_bwa_align_reads.txt"
     run:
@@ -383,7 +381,7 @@ rule refinem_call_genes:
     conda: "envs/refinem.yml"
     benchmark: "benchmarks/refinem_call_genes.txt"
     shell:'''
-    refinem call_genes -c 40 {params.bindir} {params.genedir}
+    refinem call_genes -c 4 {params.bindir} {params.genedir}
     '''
 
 rule refinem_taxon_profile:
@@ -399,7 +397,7 @@ rule refinem_taxon_profile:
     conda: "envs/refinem.yml"
     benchmark: "benchmarks/refinem_taxon_profile.txt"
     shell:'''
-    refinem taxon_profile -c 40 {params.genedir} {input.scaffold_stats} {input.db} {input.tax} {params.outdir}
+    refinem taxon_profile -c 4 {params.genedir} {input.scaffold_stats} {input.db} {input.tax} {params.outdir}
     '''
 
 rule refinem_taxon_filter:
@@ -409,7 +407,7 @@ rule refinem_taxon_filter:
     conda: "envs/refinem.yml"
     benchmark: "benchmarks/refinem_taxon_filter.txt"
     shell:'''
-    refinem taxon_filter -c 40 {params.indir} {output}
+    refinem taxon_filter -c 4 {params.indir} {output}
     '''
 
 rule refinem_filter_bins_taxon:
