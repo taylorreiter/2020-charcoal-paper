@@ -1,7 +1,8 @@
 import pandas as pd
 import re
 
-gtdb_url = "https://data.ace.uq.edu.au/public/gtdb/data/releases/release89/89.0/bac120_taxonomy_r89.tsv"
+#gtdb_url = "https://data.ace.uq.edu.au/public/gtdb/data/releases/release89/89.0/bac120_taxonomy_r89.tsv"
+gtdb_url = "inputs/bac120_taxonomy_r89.tsv"
 gtdb = pd.read_csv(gtdb_url, sep = "\t")
 GENOMES = gtdb[gtdb.columns[0]].unique().tolist()
 GENOMES = [genome for genome in GENOMES if 'RS_' in genome] # filter to refseq
