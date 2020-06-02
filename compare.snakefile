@@ -279,10 +279,16 @@ rule run_magpurify_clean_bin:
 ### Compare against refineM
 #############################################
 
-rule refinem_download_db:
-    output:""
+rule refinem_download_protein_db:
+    output:"inputs/refinem_db/gtdb_r89_protein_db.2019-09-27.faa.gz"
     shell:'''
-    wget -O {output}
+    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_protein_db.2019-09-27.faa.gz
+    '''
+
+rule refinem_download_taxonmy_db:
+    output: "inputs/refinem_db/gtdb_r89_taxonomy.2019-09-27.tsv"
+    shell:'''
+    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_taxonomy.2019-09-27.tsv
     '''
 
 rule refinem_download_raw_reads_forward:
@@ -316,7 +322,7 @@ rule refinem_index_genomes:
 rule refinem_align_reads:
     input:
         genome ="outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa",
-        indx = "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt"
+        indx = "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt",
         r1 = expand("inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz", metagenome = METAGENOMES),
         r2 = expand("inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz", metagenome = METAGENOMES),
     output: "outputs/refinem/bams/{genome}.bam"
@@ -352,25 +358,25 @@ rule refinem_outliers:
     conda: "envs/refinem.yml"
     benchmark: "benchmarks/refinem_outliers.txt"
     shell:'''
-    refinem outliers {input} <outlier_output_dir>
+    refinem outliers {input} {params.outdir}
     '''
 
 rule refinem_filter_bins_stats:
     input: "outputs/refinem/outliers/outliers.tsv"
-    output: "outputs/refinem/filter_bin_stats/" # need to decide if I want all bins here or just modified bins. if mod, probs directory().
+    output: directory("outputs/refinem/filter_bin_stats/") # need to decide if I want all bins here or just modified bins. if mod, probs directory().
     params: 
         bindir = "outputs/mgnify_genomes/human-gut/v1.0",
         outdir = "outputs/refinem/filter_bins_stats/"
     conda: "envs/refinem.yml"
     benchmark: "benchmarks/refinem_filter_bins_stats.txt"
     shell:'''
-    refinem filter_bins {params.bindir} {input} {params.outdir} # --modified_only will make this rule only output modified bins
+    refinem filter_bins {params.bindir} {input} {params.outdir} --modified_only # flag makes this rule only output modified bins
     '''
 
 rule refinem_call_genes:
     input: 
         expand("outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa", genome = GENOMES),
-    output: # NEED TO FILL IN OUTPUT FILE (run first, to determine name of an output file)
+    output: directory("outputs/refinem/call_genes") # NEED TO FILL IN OUTPUT FILE (run first, to determine name of an output file)
     params: 
         bindir = "outputs/mgnify_genomes/human-gut/v1.0",
         genedir = "outputs/refinem/call_genes/"
@@ -382,10 +388,11 @@ rule refinem_call_genes:
 
 rule refinem_taxon_profile:
     input: 
+        genedir = directory("outputs/refinem/call_genes"),
         scaffold_stats = "outputs/refinem/scaffold_stats/scaffold_stats.tsv",
-        db = ,# NEED TO FILL IN WITH DB DOWNLOAD
-        tax = # NEED TO FILL IN WITH REF TAX DOWNLOAD
-    output: "outputs/refinem/taxon_profile/" # NEED TO ADD A SPECIFIC FILE NAME
+        db = "inputs/refinem_db/gtdb_r89_protein_db.2019-09-27.faa.gz",
+        tax = "inputs/refinem_db/gtdb_r89_taxonomy.2019-09-27.tsv"
+    output: directory("outputs/refinem/taxon_profile/") # NEED TO ADD A SPECIFIC FILE NAME
     params:
         genedir = "outputs/refinem/call_genes",
         outdir = "outputs/refinem/taxon_profile"
@@ -396,7 +403,7 @@ rule refinem_taxon_profile:
     '''
 
 rule refinem_taxon_filter:
-    input: "outputs/refinem/taxon_profile/" # NEED TO ADD A SPECIFIC FILE NAME TO MATCH OUTPUT OF ABOVE RULE 
+    input: directory("outputs/refinem/taxon_profile/") # NEED TO ADD A SPECIFIC FILE NAME TO MATCH OUTPUT OF ABOVE RULE 
     output: "outputs/refinem/taxon_profile/taxon_filter.tsv" 
     params: indir = "outputs/refinem/taxon_profile"
     conda: "envs/refinem.yml"
@@ -409,7 +416,7 @@ rule refinem_filter_bins_taxon:
     input: 
         tax_filt = "outputs/refinem/taxon_profile/taxon_filter.tsv",
         genome = expand("outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa", genome = GENOMES),
-    output: "outputs/refinem/filter_bins_taxon" # NEED TO ADD SPECIFIC FILE OUTPUTS
+    output: directory("outputs/refinem/filter_bins_taxon") # NEED TO ADD SPECIFIC FILE OUTPUTS
     params: 
         bindir = "outputs/mgnify_genomes/human-gut/v1.0",
         outdir = "outputs/refinem/filter_bins/taxon"
