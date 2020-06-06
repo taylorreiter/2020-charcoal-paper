@@ -47,12 +47,6 @@ genome2acc2ftpDF= genome2acc2ftpDF.apply(generate_fastq_acc_and_output, axis=1)
 # each fastq_acc should have the same associated ftp_links = straight to dict, don't groupby
 fastq_acc2ftp = dict(zip(genome2acc2ftpDF.fastq_acc,genome2acc2ftpDF.ftp_links))
 
-## Seems like there might be some genomes that use paired + unpaired libraries
-#to look at this, do:
-#  1. genome2outnames = genome2acc2ftpDF.groupby(["Genome","libtype"])["fastq_acc"].apply('_'.join).reset_index() # has 113 rows
-#  2. alternatively, ignoring libtype when grouping gets you 89 unique entires (genome2acc2ftpDF.groupby("Genome")["fastq_acc"].apply('_'.join).reset_index())
-## Not sure what you want... the solution below concatenates all SE to _1 files
-
 # To map genome to multiple input files: 
 
 #first, group by Genome and join all fastq_acc, ignoring libytpe. This will give you _1 files
@@ -71,19 +65,7 @@ merged_genome_info.fillna("", inplace=True)
 genome2r1=dict(zip(merged_genome_info.Genome, merged_genome_info.r1))
 genome2r2=dict(zip(merged_genome_info.Genome, merged_genome_info.r2))
 
-############# notes (delete me after reading) ################
 
-## GUT_GENOME206249 has 868 rows. that was going to be a LONGGGG filename. Is this accurate? Or should we be concerned?
-# genome2acc2ftpDF[genome2acc2ftpDF["Genome"] == "GUT_GENOME206249"] # to see the dataframe for this genome.
-# I abandoned ship for my preferred method (genome names), partly bc long filenames, partly bc debugging was getting too confusing.
-
-# here's some code to keep all the library info in the filenames, if you really want those..
-# with all infrastructure working now, it shouldn't be too difficult.
-#genome2library=merged_genome_info[["Genome", "library1", "library2"]].set_index("Genome").to_dict(orient="index")
-#lib1_to_output = dict(zip(merged_genome_info.library1,merged_genome_info.lib1_outfiles)) 
-#lib2_to_output = dict(zip(merged_genome_info.library2,merged_genome_info.lib2_outfiles)) 
-# rule all targets: expand("outputs/refinem/bams/{genome}.bam", genome = genome2library.keys())
-#######################################
 
 rule all:
     input:
