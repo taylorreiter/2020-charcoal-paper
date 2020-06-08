@@ -1,12 +1,71 @@
+import os
 import pandas as pd
 import random 
 
 #m = pd.read_csv("http://ftp.ebi.ac.uk/pub/databases/metagenomics/mgnify_genomes/human-gut/v1.0/genomes-all_metadata.tsv", sep = "\t")
 #m = m.sample(n = 1000)
-m = pd.read_csv("tmp-1000r-mgnify-genomes-all_metadata.tsv", sep = "\t")
+m = pd.read_csv("tmp-1000r-mgnify-genomes-all_metadata.tsv", sep = "\t", index_col=0)
 m = m.head(n = 100)
 GENOMES = m['Genome'].unique().tolist()
-METAGENOMES = m['Sample_accession'].unique().tolist()
+m.dropna(subset = ["Sample_accession"], inplace = True)
+ACCESSIONS = m['Sample_accession'].unique().tolist()
+
+
+##### refinem processing ######
+
+## Establish infrastructure to link genome accession to
+## metagenome read accessions. 
+
+# read all into one pd dataframe, creating an "accession" column from the filename
+# drop genomes that don't have an accession 
+acc2ftp_files = expand("inputs/mgnify_raw_reads_links/{accession}.tsv", accession=ACCESSIONS)
+acc2ftpDF = pd.concat([pd.read_csv(tsv, sep="\t").assign(Sample_accession=os.path.basename(tsv).rsplit(".tsv")[0]) for tsv in acc2ftp_files], ignore_index=True)
+acc2ftpDF["ftp_links"] = acc2ftpDF["fastq_ftp"].str.split(";")
+
+def generate_fastq_acc_and_output(row):
+    only_or_second_filename = row["fastq_ftp"].rsplit("/", 1)[1]
+    # get fastq_acc and libtype from the ftp filename
+    if "_2" in only_or_second_filename:
+    # pe: _1.fastq.gz, _2.fastq.gz ; SE: #.fastq.gz
+        row["libtype"] = "paired"
+        row["fastq_acc"] = only_or_second_filename.rsplit("_2.fastq.gz")[0]
+        # generate output names from links, for use later
+        row["outfile1"] = only_or_second_filename.replace("_2", "_1")
+        row["outfile2"] = only_or_second_filename
+    else:
+        row["libtype"] = "unpaired"
+        row["fastq_acc"] = only_or_second_filename.rsplit(".fastq.gz")[0]
+        row["outfile1"] = only_or_second_filename
+    return row
+
+# join acc2ftpDF with metadata df
+genome2acc2ftpDF =  m.merge(acc2ftpDF, on = "Sample_accession")
+
+# build fastq_acc and output files
+genome2acc2ftpDF= genome2acc2ftpDF.apply(generate_fastq_acc_and_output, axis=1)
+
+# each fastq_acc should have the same associated ftp_links = straight to dict, don't groupby
+fastq_acc2ftp = dict(zip(genome2acc2ftpDF.fastq_acc,genome2acc2ftpDF.ftp_links))
+
+# To map genome to multiple input files: 
+
+#first, group by Genome and join all fastq_acc, ignoring libytpe. This will give you _1 files
+genome_info1 = genome2acc2ftpDF.groupby("Genome").agg(library1=('fastq_acc','_'.join), r1=('outfile1', list)).reset_index()
+# to get _2 files, subset for paired files, then group + aggregate to list.
+genome_info2 = genome2acc2ftpDF[genome2acc2ftpDF["libtype"] == "paired"].groupby(["Genome"]).agg(library2=('fastq_acc','_'.join), r2=('outfile2', list)).reset_index()
+
+# now merge these two DF's on the Genome column.
+merged_genome_info = genome_info1.merge(genome_info2, on = "Genome", how="outer") # outer takes union, not intersection
+# now we have some pesky nan's in the r2, library2 columns from se-only Genomes. fill with ""
+merged_genome_info.fillna("", inplace=True)
+# if desired you could also print this to a csv, for file provenance metadata storage: 
+#merged_genome_info.to_csv(index=False) # and or select cols. you may just want "Genome", "r1", "r2"
+
+# make genome: download file dicts
+genome2r1=dict(zip(merged_genome_info.Genome, merged_genome_info.r1))
+genome2r2=dict(zip(merged_genome_info.Genome, merged_genome_info.r2))
+
+
 
 rule all:
     input:
@@ -15,7 +74,8 @@ rule all:
         "outputs/charcoal_clean_checkm_qa/qa.tsv",
         expand("outputs/charcoal_dirty_prokka/{genome}.fna", genome = GENOMES),
         "outputs/charcoal_dirty_checkm_qa/qa.tsv",
-        expand("outputs/magpurify_clean/{genome}_magpurify.fna", genome = GENOMES)
+        expand("outputs/magpurify_clean/{genome}_magpurify.fna", genome = GENOMES), 
+        expand("outputs/refinem/bams/{genome}.bam", genome = genome2r1.keys())
         
 
 rule download_genomes: 
@@ -279,34 +339,71 @@ rule run_magpurify_clean_bin:
 ### Compare against refineM
 #############################################
 
-rule refinem_download_protein_db:
-    output:"inputs/refinem_db/gtdb_r89_protein_db.2019-09-27.faa.gz"
-    shell:'''
-    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_protein_db.2019-09-27.faa.gz
-    '''
 
-rule refinem_download_taxonmy_db:
-    output: "inputs/refinem_db/gtdb_r89_taxonomy.2019-09-27.tsv"
-    shell:'''
-    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_taxonomy.2019-09-27.tsv
-    '''
+rule refinem_download_se_fastq_files:
+    output: 
+        "inputs/mgnify_raw_reads/se/{fastq_acc}.fastq.gz", 
+    wildcard_constraints:
+        # no underscore! so avoid issues with _1,_2 
+        fasttq_acc='[a-z0-9]+'
+    params:
+         ftp= lambda w: fastq_acc2ftp[w.fastq_acc][0],
+    shell:
+        """
+        curl -o {output} {params.ftp}
+        """
 
-rule refinem_download_ftp_links_for_raw_fastq:
-    output: "inputs/raw_mgnify_reads_links/{accession}.tsv"
-    run:
-        accession = wildcards.accession
-        url = "http://www.ebi.ac.uk/ena/data/warehouse/filereport?accession=" + accession + "&result=read_run&fields=fastq_ftp"
-        shell("wget -O {output} {url}")
+rule refinem_download_fastq_files:
+    params:
+        ftp_1 = lambda w: fastq_acc2ftp[w.fastq_acc][0],
+        ftp_2 = lambda w: fastq_acc2ftp[w.fastq_acc][1]
+    output: 
+        r1="inputs/mgnify_raw_reads/pe/{fastq_acc}_1.fastq.gz",
+        r2="inputs/mgnify_raw_reads/pe/{fastq_acc}_2.fastq.gz",
+    wildcard_constraints:
+        fastq_acc='[a-z0-9]+'
+    shell:
+        """
+        curl -o {output.r1} {params.ftp_1}
+        curl -o {output.r2} {params.ftp_2}
+        """ 
 
+def get_cat1_input(w):
+    cat_files=[]
+    input_files = genome2r1[w.genome]
+    for infile in input_files:
+        if "_1.fastq.gz" in infile:
+            cat_files+=[f"inputs/mgnify_raw_reads/pe/{infile}"]
+        else:
+            cat_files+=[f"inputs/mgnify_raw_reads/se/{infile}"]
+    print(cat_files)
+    return cat_files 
 
-rule refinem_download_raw_fastq:
-    """
-    this rule needs to read in the accessions.tsv files output above,
-    generate a list of distinct ftp links for all accessions,
-    and download those links. 
-    it also needs to create an accession:ftp mapping, so that the correct pair
-    of genome + reads can be aligned. 
-    """
+rule refinem_cat_libraries_R1:
+    input: get_cat1_input
+    output: "inputs/cat/{genome}_1.fastq.gz"
+    shell:
+        """
+        cat {input} > {output}
+        """
+
+def get_cat2_input(w):
+    # look out for "" from nan's!
+    cat_files=[]
+    input_files = genome2r2[w.genome]
+    for infile in input_files:
+        if infile:
+            cat_files+=[f"inputs/mgnify_raw_reads/pe/{infile}"]
+    print(cat_files)
+    return cat_files 
+
+rule refinem_cat_libraries_R2:
+    input: get_cat2_input
+    output: "inputs/cat/{genome}_2.fastq.gz"
+    shell:
+        """
+        cat {input} > {output}
+        """
 
 rule refinem_index_genomes:
     input: 
@@ -317,22 +414,25 @@ rule refinem_index_genomes:
     bwa index {input}
     '''
 
-rule refinem_align_reads:
-    input:
-        genome ="outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa",
-        indx = "outputs/mgnify_genomes/human-gut/v1.0/{genome}.fa.bwt",
-        #r1 = expand("inputs/raw_mgnify_reads/{metagenome}_1.fastq.gz", metagenome = METAGENOMES),
-        #r2 = expand("inputs/raw_mgnify_reads/{metagenome}_2.fastq.gz", metagenome = METAGENOMES),
-    output: "outputs/refinem/bams/{genome}.bam"
-    benchmark: "benchmarks/refinem_{genome}_bwa_align_reads.txt"
-    run:
-        row = m.loc[m['Genome'] == wildcards.genome]
-        metagenome = row['Sample_accession'].values
-        metagenome = metagenome[0]
-        r1 = "inputs/raw_mgnify_reads/" + metagenome + "_1.fastq.gz"
-        r2 = "inputs/raw_mgnify_reads/" + metagenome + "_2.fastq.gz"
-        shell("bwa mem {input.genome} {r1} {r2} | samtools sort -o {output} -")
 
+def get_align_info(w):
+    genome =f"outputs/mgnify_genomes/human-gut/v1.0/{w.genome}.fa"
+    indx = f"outputs/mgnify_genomes/human-gut/v1.0/{w.genome}.fa.bwt"
+    reads = [f"inputs/cat/{w.genome}_1.fastq.gz"]
+    if genome2r2.get(w.genome):
+        # it's possible there may only be one read if all are se 
+        reads+= [f"inputs/cat/{w.genome}_2.fastq.gz"]
+    return {"genome":genome, "indx": indx, "reads": reads }
+
+
+rule refinem_align_reads:
+    input: unpack(get_align_info)
+    output: "outputs/refinem/bams/{genome}.bam"
+    conda: "envs/bwa.yml"
+    benchmark: "benchmarks/refinem_{genome}_bwa_align_reads.txt"
+    shell:'''
+    bwa mem {input.genome} {{" ".join(reads)}} | samtools sort -o {output} -")
+    ''' 
 
 rule refinem_scaffold_stats:
     input: 
@@ -382,6 +482,18 @@ rule refinem_call_genes:
     benchmark: "benchmarks/refinem_call_genes.txt"
     shell:'''
     refinem call_genes -c 4 {params.bindir} {params.genedir}
+    '''
+
+rule refinem_download_protein_db:
+    output:"inputs/refinem_db/gtdb_r89_protein_db.2019-09-27.faa.gz"
+    shell:'''
+    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_protein_db.2019-09-27.faa.gz
+    '''
+
+rule refinem_download_taxonmy_db:
+    output: "inputs/refinem_db/gtdb_r89_taxonomy.2019-09-27.tsv"
+    shell:'''
+    wget -O {output} https://data.ace.uq.edu.au/public/misc_downloads/refinem/gtdb_r89_taxonomy.2019-09-27.tsv
     '''
 
 rule refinem_taxon_profile:
