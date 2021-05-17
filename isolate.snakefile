@@ -8,9 +8,14 @@ GENOMES = gtdb[gtdb.columns[0]].unique().tolist()
 GENOMES = [genome for genome in GENOMES if 'RS_' in genome] # filter to refseq
 GENOMES = [re.sub("RS_", "", genome) for genome in GENOMES]
 
+gtdb_failed = pd.read_csv("failed_gtdb_140k_download.txt", header = None)
+gtdb_failed = gtdb_failed[gtdb_failed.columns[0]].unique().tolist()
+GENOMES = set(GENOMES) - set(gtdb_failed) 
+
 rule all:
     input: 
-        expand("inputs/refseq_gtdb_isolates/{genome}.fna.gz", genome = GENOMES)
+        #expand("inputs/refseq_gtdb_isolates/{genome}.fna.gz", genome = GENOMES)
+        expand("outputs/charcoal_isolate/{genome}.fa.clean.fa.gz", genome = GENOMES),
 
 rule download_datasets_tool:
     output: "scripts/datasets"
@@ -41,3 +46,27 @@ rule unzip_genomes:
 #    #conda: "envs/biomartr.yml"
 #    script: "scripts/download_gtdb_genomes_biomartr.R"
 
+rule make_mag_list: 
+    """
+    This rule will over specify the number of files that charcoal needs to run on if there are extra genome files in this directory.
+    """
+    input: expand("inputs/refseq_gtdb_isolates/{genome}.fna.gz", genome = GENOMES)
+    output: "inputs/charcoal_conf/isolate_genome_list.txt"
+    params: indir = "inputs/refseq_gtdb_isolates"
+    shell:'''
+    ls {params.indir} > {output}
+    '''
+
+rule run_charcoal:
+    input: 
+        genomes = expand("inputs/refseq_gtdb_isolates/{genome}.fna.gz", genome = GENOMES),
+        mag_list = "inputs/charcoal_conf/isolate_genome_list.txt",
+        conf = "inputs/charcoal_conf/isolate_genomes.conf",
+    output: 
+        expand("outputs/charcoal_isolate/{genome}.fa.clean.fa.gz", genome = GENOMES),
+        expand("outputs/charcoal_isolate/{genome}.fa.dirty.fa.gz", genome = GENOMES)
+    conda: "envs/charcoal.yml"
+    benchmark: "benchmarks/charcoal.benchmark"
+    shell:'''
+    charcoal run {input.conf} -j 16 --nolock --no-use-conda
+    '''
