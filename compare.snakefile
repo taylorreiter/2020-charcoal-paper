@@ -339,13 +339,12 @@ rule run_magpurify_clean_bin:
 ### Compare against refineM
 #############################################
 
-
 rule refinem_download_se_fastq_files:
     output: 
         "inputs/mgnify_raw_reads/se/{fastq_acc}.fastq.gz", 
-    wildcard_constraints:
+    #wildcard_constraints:
         # no underscore! so avoid issues with _1,_2 
-        fasttq_acc='[a-z0-9]+'
+    #    fastq_acc="[a-z0-9]*"
     params:
          ftp= lambda w: fastq_acc2ftp[w.fastq_acc][0],
     shell:
@@ -353,15 +352,15 @@ rule refinem_download_se_fastq_files:
         curl -o {output} {params.ftp}
         """
 
-rule refinem_download_fastq_files:
+rule refinem_download_pe_fastq_files:
     params:
         ftp_1 = lambda w: fastq_acc2ftp[w.fastq_acc][0],
         ftp_2 = lambda w: fastq_acc2ftp[w.fastq_acc][1]
     output: 
         r1="inputs/mgnify_raw_reads/pe/{fastq_acc}_1.fastq.gz",
         r2="inputs/mgnify_raw_reads/pe/{fastq_acc}_2.fastq.gz",
-    wildcard_constraints:
-        fastq_acc='[a-z0-9]+'
+    #wildcard_constraints:
+    #    fastq_acc="[a-z0-9]*"
     shell:
         """
         curl -o {output.r1} {params.ftp_1}
@@ -376,7 +375,6 @@ def get_cat1_input(w):
             cat_files+=[f"inputs/mgnify_raw_reads/pe/{infile}"]
         else:
             cat_files+=[f"inputs/mgnify_raw_reads/se/{infile}"]
-    print(cat_files)
     return cat_files 
 
 rule refinem_cat_libraries_R1:
@@ -394,7 +392,6 @@ def get_cat2_input(w):
     for infile in input_files:
         if infile:
             cat_files+=[f"inputs/mgnify_raw_reads/pe/{infile}"]
-    print(cat_files)
     return cat_files 
 
 rule refinem_cat_libraries_R2:
@@ -431,7 +428,7 @@ rule refinem_align_reads:
     conda: "envs/bwa.yml"
     benchmark: "benchmarks/refinem_{genome}_bwa_align_reads.txt"
     shell:'''
-    bwa mem {input.genome} {{" ".join(reads)}} | samtools sort -o {output} -")
+    bwa mem {input.genome} {input.reads} | samtools sort -o {output} -
     ''' 
 
 rule refinem_scaffold_stats:
