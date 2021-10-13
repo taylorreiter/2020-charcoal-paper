@@ -1,13 +1,14 @@
 channels:
- - conda-forge  
- - bioconda
- - defaults
+    - conda-forge
+    - bioconda
+    - defaults
 dependencies:
- - python>=3.6
- - sourmash>=3.3,<4
- - pytest
- - snakemake-minimal=5.8.1
- - pip
- - pip:
-    - git+https://github.com/dib-lab/charcoal@master
-    - dendropy==4.4.0
+    - python>=3.7
+    - snakemake-minimal=6.5.1
+    - screed
+    - click>=7,<8
+    - pip
+    - mamba
+    - sourmash>=4.2.0,<5
+    - pip:
+      - git+https://github.com/dib-lab/charcoal@latest
