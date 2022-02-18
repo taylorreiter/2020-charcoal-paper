@@ -10,7 +10,7 @@ ACCS =  tax_info["ident"]
 
 rule all:
     input:
-        expand("outputs/gtdb_rs202_genomes/genomes/{acc}_genomic.fna.gz", acc=ACCS)
+        expand("outputs/gtdb_rs202_charcoal/{acc}.fa.clean.fa.gz", acc = ACCS),
 
 # ad genbank genome details; make an info.csv file for entry.
 rule make_genome_info_csv:
@@ -49,7 +49,6 @@ rule download_matching_genome_wc:
 
 rule make_charcoal_genome_list: 
     input: 
-        genomes = expand("outputs/gtdb_rs202_genomes/genomes/{acc}_genomic.fna.gz", acc = ACC),
         gtdb_taxonomy="inputs/gtdb-rs202.taxonomy.with-repinfo.csv"
     output: genome_list="inputs/charcoal_conf/gtdb_rs202_genome_list.txt"
     benchmark: "benchmarks/make_charcoal_genome_list.txt"
@@ -70,18 +69,17 @@ rule make_charcoal_lineage_sheet:
 
 rule run_charcoal:
     input: 
-        genomes = expand("outputs/gtdb_rs202_genomes/genomes/{acc}_genomic.fna.gz", acc = ACC),
+        genomes = expand("outputs/gtdb_rs202_genomes/genomes/{acc}_genomic.fna.gz", acc = ACCS),
         genome_list = "inputs/charcoal_conf/gtdb_rs202_genome_list.txt",
         lineages = "inputs/charcoal_conf/gtdb_rs202_lineages.txt",
         conf = "inputs/charcoal_conf/gtdb_rs202_genomes.conf",
     output: 
-        expand("outputs/gtdb_rs202_charcoal/{genome}.fa.clean.fa.gz", acc = ACC),
-        expand("outputs/gtdb_rs202_charcoal/{genome}.fa.dirty.fa.gz", acc = ACC)
+        expand("outputs/gtdb_rs202_charcoal/{acc}.fa.clean.fa.gz", acc = ACCS),
+        expand("outputs/gtdb_rs202_charcoal/{acc}.fa.dirty.fa.gz", acc = ACCS)
     conda: "envs/charcoal.yml"
     benchmark: "benchmarks/charcoal_gtdb_rs202.benchmark"
     resources: mem_mb = 256000
     threads: 16
     shell:'''
-    python -m charcoal run {input.conf} -j {threads} clean --nolock --no-use-conda --latency-wait 15 --rereun-incomplete
-    #touch {output.clean_finished}
+    python -m charcoal run {input.conf} -j {threads} clean --nolock --no-use-conda --latency-wait 15 --rerun-incomplete
     '''
