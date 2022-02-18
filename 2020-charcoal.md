@@ -1,47 +1,18 @@
----
-title: "Charcoal: filtering contamination in metagenome-assembled genome bins"
-date: "`r Sys.Date()`"
+# Charcoal: filtering contamination in metagenome-assembled genome bins
 authors:
-  - name: Taylor Reiter
-    email: tereiter@ucdavis.edu
-    address: Some Institute of Technology
-  - name: Lots of Other People
-    email: cat@example.com
-    address: Another University
-  - name: C. Titus Brown
-    email: ctbrown@ucdavis.edu
-    address: Some Institute of Technology
-    corresponding_author: yes
-abstract: |
-  This is the abstract.
+Taylor Reiter
+Lots of Other People
+C. Titus Brown
 
-  It consists of two paragraphs.
-acknowledgements: |
-  We thank everyone involved.
-
-  Including funding sources.
 keywords:
   - metagenome-assembled genome bin
   - contamination
-  - scaled MinHash
-fontsize: 12pt
-#spacing: halfline # could also be oneline
-#classoptions:
-#  - endnotes
-bibliography: mybibfile.bib
-output: rticles::oup_article
----
+  - FracMinHash
+  - minsetcov
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE) # By default, hide code; set to TRUE to see code
-knitr::opts_chunk$set(fig.pos = 'p') # Places figures on their own pages
-knitr::opts_chunk$set(out.width = '100%', dpi=300) # Figure resolution and size
-knitr::opts_chunk$set(fig.env="figure") # Latex figure environment
+## Abstract
 
-library(xtable) # Creates tables that follow OUP guidelines; other options, such as kable, may also be workable
-```
-
-# Introduction
+## Introduction
 
 Metagenomic sequencing has revolutionized our understanding of microorganisms. 
 Advances in high-throughput sequencing combined with scalable analysis methods have generated hundreds of thousands of draft genomes, termed metagenome-assembled genomes (MAGs), from culturable and unculturable organisms from diverse environments.
@@ -60,11 +31,9 @@ We show...
 We show...
 We envisage that charcoal will complement marker gene-based approaches for contamination estimation, removing problematic sequences before they are further analyzed or propagated in public databases. 
 
-Here are two sample references: @Feynman1963118 [@Dirac1953888]. Bibliography will appear at the end of the document.
+## Materials and methods
 
-# Materials and methods
-
-## Overview
+### Overview
 
 Charcoal identifies and removes contamination in metagenome-assembled genomes using k-mer based methods.
 Charcoal is developed around the tool sourmash, which computes and compares scaled MinHash signatures for nucleotide sequences based on k-mers (CITE: F1000, JOSS). 
@@ -105,66 +74,32 @@ Therefore, charcoal will fail to detect contamination for very short contigs whi
 
 Identifying all lineages in the genome with sourmash gather is the most compute intensive step in the decontamination process. 
 
-## Availability
+### Availability
 
 Charcoal is written in python3 and can be installed via conda or pip. 
 It depends on sourmash and snakemake. 
 The source code is available at github.com/dib-lab/charcoal.
 
-## Datasets and benchmarking
+### Datasets and benchmarking
 
-# Results
-
-Generate a figure.
-
-```{r fig1, fig.cap = "This is the first figure.", echo = F}
-plot(1:10, main="Some data", xlab="Distance (cm)", ylab="Time (hours)")
-```
-
-You can reference this figure as follows: Fig. \ref{fig:fig1}.
-
-Generate a table.
-
-```{r tab1, results = "asis", echo = F}
-df = data.frame(ID=1:3,code=letters[1:3])
-print(xtable(df,caption="This is the table caption",label="tab:tab1"),
-      comment=FALSE)
-```
-
-You can reference this table as follows: Table \ref{tab:tab1}.
-
-# Discussion
-
-You can cross-reference sections and subsections as follows: Section \ref{materials-and-methods} and Section \ref{a-subsection}.
+## Results
 
 
-# THINGS TO ADD
+
+## Notes
+
 + fastani is an accepted way to do average nucleotide identity calculate, and it relies on k-mers.
 + from checkm paper:
 > Bias in genome quality estimates: Quality estimates based on individual marker genes or collocated marker sets exhibit a bias resulting in completeness being overestimated and contamination being underestimated. This bias is the result of marker genes residing on foreign DNA that are otherwise absent in a genome being mistakenly interpreted as an indication of increased completeness as opposed to contamination. 
 + we don't deal with strain heterogeneity, as this occurs below the species-level aggregation in the LCA
 
-# formatting notes
-
-A numbered list:
-
-1) First point
-2) Second point
-    - Subpoint
-    
-A bullet list:
-
-* First point
-* Second point
-
-
-# Questions for titus:
+## Questions for titus:
 
 1. What does REASON 3 actually mean?
 2. in `class ContigsDecontaminator`, how does the object transit from REASON 1 checks to REASON 2 & 3 checks? What is a class? How is it being used here?
 3. are hashes assigned their LCA lineage? so if it's shared between all strains of a species, it gets the species lineage? and if it's shared in two phyla of bacteria, it gets the "bacteria" lineage?
 
-# Results outline:
+## old results outline:
 
 + charcoal estimates low contamination in non-representative GTDB genomes
 + charcoal assigns correct taxonomy to all non-representative GTDB genomes
