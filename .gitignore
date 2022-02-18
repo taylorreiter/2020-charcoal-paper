@@ -1,3 +1,4 @@
 benchmarks/
 slurm/
 .snakemake
+slurm*out
