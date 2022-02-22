@@ -31,6 +31,7 @@ Rough results outline, computation for which is accomplished in this repository.
        - pairs of contaminants occur more than expected by chance
    - comparison to checkm contamination
    - number of shared 31-mers decreases after GTDB decontamination 
+   - compare results with full GTDB vs reps for subset of GTDB (all contaminated genomes?)
 2. Run charcoal on sets of MAGs from different environments
    - mgnify
    - TARA oceans
