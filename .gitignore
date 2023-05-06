@@ -2,3 +2,10 @@ benchmarks/
 slurm/
 .snakemake
 slurm*out
+notebooks/.DS_Store
+notebooks/.ipynb_checkpoints/
+notebooks/inputs/
+inputs/.DS_Store
+.Rhistory
+.DS_Store
+outputs/
